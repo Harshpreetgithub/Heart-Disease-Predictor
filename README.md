@@ -1,43 +1,78 @@
-# Heart-Disease-Predictor
-Machine learning classification models predicting cardiovascular risk with up to 88.04% accuracy using non-invasive clinical attributes and feature importance evaluation.
-# Heart Disease Prediction Using Machine Learning Classification Techniques
+# Cardiac Risk Estimator — deploy to Vercel
 
-A comparative analysis of supervised machine learning classification algorithms to predict cardiovascular disease risk using non-invasive clinical attributes from Kaggle's Heart Failure Prediction Dataset.
+A small full-stack app around the Random Forest model from the report:
+a static HTML/CSS/JS form (`/public`) calling a FastAPI prediction
+endpoint (`main.py`), served together as one Vercel project.
 
-## 📌 Project Overview
-Early detection of cardiovascular disease (CVD) is critical for timely clinical intervention[cite: 1]. This project evaluates five supervised machine learning models—Logistic Regression, K-Nearest Neighbors, Support Vector Classification, Decision Tree, and Random Forest—to determine the most accurate and interpretable model for predicting heart disease[cite: 1].
+## What's in this folder
 
-The dataset contains 918 patient records across 11 clinical features sourced from five combined heart disease datasets[cite: 1].
+```
+main.py               FastAPI app — loads the model and exposes POST /api/predict
+model.pkl              trained RandomForestClassifier (Chapter 8 pipeline)
+scaler.pkl              StandardScaler fitted on the training split
+label_encoders.pkl      LabelEncoders for Sex / ExerciseAngina
+feature_columns.json    exact column order the model expects
+train_model.py          the training script that produced the .pkl files
+heart.csv               the 918-row dataset used to train them
+requirements.txt        Python dependencies
+vercel.json             sets the function timeout
+public/
+  index.html            the form + results UI
+  style.css
+  app.js                calls /api/predict and renders the gauge
+```
 
-## 📊 Key Results
+## 1. Retrain locally first (optional but recommended)
 
-Random Forest and Support Vector Classification (SVC) achieved the highest overall test accuracy at **88.04%**[cite: 1]. Random Forest provided the highest 10-fold cross-validation performance (**87.60%**) and clearest feature interpretability[cite: 1].
+If you want to confirm everything reproduces the report's numbers before
+deploying:
 
-| Model | Training Acc. (%) | Testing Acc. (%) | F1-Score | 10-Fold CV Acc. (%) |
-| :--- | :---: | :---: | :---: | :---: |
-| **Logistic Regression** | 87.06 | 86.41 | 0.87 | 86.11 |
-| **K-Nearest Neighbors** | 91.69 | 86.41 | 0.87 | 86.38 |
-| **Support Vector Classification** | 91.28 | 88.04 | 0.89 | 86.78 |
-| **Decision Tree Classification** | 88.15 | 85.33 | 0.86 | 83.24 |
-| **Random Forest Classification** | 100.00 | 88.04 | 0.89 | 87.60 |
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt scikit-learn pandas
+python3 train_model.py
+```
 
-## 🔑 Key Insights & Feature Importance
-Based on the Random Forest feature importance analysis, the top four predictors accounting for over 50% of the model's decision-making weight are[cite: 1]:
-1. **ST_Slope_Up** – Slope of peak exercise ST segment[cite: 1]
-2. **Oldpeak** – Exercise-induced ST depression[cite: 1]
-3. **Cholesterol** – Serum cholesterol levels[cite: 1]
-4. **MaxHR** – Maximum heart rate achieved[cite: 1]
+This regenerates `model.pkl`, `scaler.pkl`, `label_encoders.pkl` and
+`feature_columns.json` from `heart.csv`. You should see Random Forest at
+~88% test accuracy / ~87.6% 10-fold CV, matching Chapter 6 of the report.
 
-## 🛠 Tech Stack & Workflow
-* **Language & Libraries:** Python, NumPy, Pandas, Scikit-Learn, Matplotlib, Seaborn[cite: 1]
-* **Preprocessing:** One-Hot Encoding, Label Encoding, `StandardScaler` (z-score normalization), ANOVA F-test statistical validation[cite: 1]
-* **Evaluation:** 80:20 Stratified Train-Test Split, 10-Fold Cross-Validation, Confusion Matrices, Precision/Recall/F1-Score[cite: 1]
+## 2. Test locally with Vercel's dev server
 
-## 📁 Repository Structure
-```text
-├── data/                  # Heart failure prediction dataset
-├── notebooks/             # Jupyter notebook with complete code and visualizations
-├── models/                # Saved model files (scaler.pk, Random_Forest_Classifier.pk)
-├── report/                # Industrial training report document
-├── requirements.txt       # Project dependencies
-└── README.md              # Project documentation
+```bash
+npm i -g vercel        # if you don't already have the CLI
+pip install -r requirements.txt
+vercel dev
+```
+
+Open the printed local URL — the form should load and `/api/predict`
+should return a JSON prediction.
+
+## 3. Deploy
+
+**Easiest — via GitHub:**
+1. Push this folder to a new GitHub repository.
+2. Go to vercel.com → **Add New… → Project** → import that repo.
+3. Vercel auto-detects the FastAPI app (`main.py` exports `app`) and the
+   `public/` static folder — no build settings to change.
+4. Click **Deploy**. You'll get a `https://your-project.vercel.app` URL.
+
+**Or via CLI, from inside this folder:**
+```bash
+vercel login
+vercel        # preview deployment
+vercel --prod # promote to production
+```
+
+## Notes
+
+- The model is a `RandomForestClassifier` (scikit-learn defaults), trained
+  with the same encoding/scaling pipeline as Chapter 8 of the report:
+  label encoding for `Sex`/`ExerciseAngina`, one-hot (drop-first) for
+  `ChestPainType`/`RestingECG`/`ST_Slope`, `StandardScaler` on all 15
+  resulting columns, 80/20 stratified split, `random_state=0`.
+- `main.py` rebuilds that exact same 15-column row for every request
+  (see `feature_columns.json`) before scaling and calling
+  `model.predict_proba`.
+- This is a training-report demo, not a medical device — the UI says so,
+  and it's worth keeping that disclaimer if you share the link.
